@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>OmniFactionDevTool</AssemblyName>
+    <RootNamespace>Calloatti.OmniFactionDevTool</RootNamespace>
+  </PropertyGroup>
+
+  <Import Project="CommonModSettings.props" />
+
+  <ItemGroup>
+    <Publicize Include="Timberborn.GameFactionSystem" />
+    <Publicize Include="Timberborn.Beavers" />
+    <Publicize Include="Timberborn.Bots" />
+    <Publicize Include="Timberborn.BlockObstacles" />
+    <Publicize Include="Timberborn.RecoveredGoodSystem" />
+    <Publicize Include="Timberborn.WonderPlanes" />
+    <Publicize Include="Timberborn.ModularShafts" />
+    <Publicize Include="Timberborn.TemplateCollectionSystem" />
+  </ItemGroup>
+  
+</Project>

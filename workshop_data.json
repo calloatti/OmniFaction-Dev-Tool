@@ -1,0 +1,13 @@
+{
+  "ItemId": "3777224955",
+  "Name": "OmniFaction Dev Tool",
+  "Visibility": "Public",
+  "UpdateDescription": true,
+  "UpdateVisibility": true,
+  "UpdatePreview": true,
+  "UpdateTags": true,
+  "Tags": [
+    "Update 1.0",
+    "Modding tools"
+  ]
+}

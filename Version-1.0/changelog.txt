@@ -1,0 +1,9 @@
+* Game Version: 1.0.0.0 - Mod Version: 1.1.0
+- Bots get only faction needs instead of all needs. Avoids crash due to missing animations.
+* Game Version: 1.0.0.0 - Mod Version: 1.1.0
+- Bots now spawn all faction bot types (IronTeeth, Folktails, and any modded factions) via round-robin.
+- Beavers now round-robin the default fur texture per faction, so Folktails (brown) and IronTeeth (gray) beavers coexist on the map.
+- Both round-robin behaviors scale automatically for any number of factions.
+
+* Game Version: 1.0.0.0 - Mod Version: 1.0.0
+- Initial release.

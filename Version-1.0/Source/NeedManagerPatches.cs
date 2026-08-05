@@ -26,8 +26,8 @@ namespace Calloatti.OmniFactionDevTool
   {
     public static void Postfix(NeedVerifier __instance)
     {
-      FactionSpecService factionSpecService = Traverse.Create(__instance).Field("_factionSpecService").GetValue<FactionSpecService>();
-      ISpecService specService = Traverse.Create(__instance).Field("_specService").GetValue<ISpecService>();
+      FactionSpecService factionSpecService = __instance._factionSpecService;
+      ISpecService specService = __instance._specService;
 
       if (factionSpecService == null || specService == null)
       {
@@ -53,6 +53,18 @@ namespace Calloatti.OmniFactionDevTool
             }
           }
         }
+
+        // Union the shared "Common" needs (Hunger/Thirst/Sleep/Injury, etc.) so faction-scoped
+        // filtering never strips survival needs from factioned beavers or bots.
+        NeedCollectionSpec commonCollection = needCollections.FirstOrDefault(c => c.CollectionId == "Common");
+        if (commonCollection != null)
+        {
+          foreach (string needId in commonCollection.Needs)
+          {
+            allowedNeeds.Add(needId);
+          }
+        }
+
         FactionNeedCache.FactionAllowedNeeds[faction.Id] = allowedNeeds;
       }
     }

@@ -1,0 +1,8 @@
+{
+  "TemplateCollectionSpec": {
+    "Blueprints#append": [
+      "Characters/Beaver/BeaverAdult.IronTeeth.blueprint",
+      "Characters/Beaver/BeaverChild.IronTeeth.blueprint"
+    ]
+  }
+}

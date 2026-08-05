@@ -8,14 +8,17 @@
   <Import Project="CommonModSettings.props" />
 
   <ItemGroup>
-    <Publicize Include="Timberborn.GameFactionSystem" />
     <Publicize Include="Timberborn.Beavers" />
-    <Publicize Include="Timberborn.Bots" />
     <Publicize Include="Timberborn.BlockObstacles" />
-    <Publicize Include="Timberborn.RecoveredGoodSystem" />
-    <Publicize Include="Timberborn.WonderPlanes" />
+    <Publicize Include="Timberborn.Bots" />
+    <Publicize Include="Timberborn.FactionSystem" />
+    <Publicize Include="Timberborn.GameFactionSystem" />
     <Publicize Include="Timberborn.ModularShafts" />
+    <Publicize Include="Timberborn.RecoveredGoodSystem" />
+    <Publicize Include="Timberborn.TemplateAttachmentSystem" />
     <Publicize Include="Timberborn.TemplateCollectionSystem" />
+    <Publicize Include="Timberborn.WonderPlanes" />
+    <Publicize Include="Timberborn.WorkSystem" />
   </ItemGroup>
   
 </Project>

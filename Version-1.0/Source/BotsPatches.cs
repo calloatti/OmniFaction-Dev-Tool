@@ -1,17 +1,35 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using Timberborn.BlueprintSystem;
 using Timberborn.Bots;
 using Timberborn.TemplateInstantiation;
 using Timberborn.TemplateSystem;
+using Timberborn.Workshops;
 using UnityEngine;
 
 namespace Calloatti.OmniFactionDevTool
 {
+  // We track the active Manufactory during the production tick to provide 
+  // faction context when BotFactory.Create is subsequently called.
+  [HarmonyPatch(typeof(Manufactory), nameof(Manufactory.IncreaseProductionProgress))]
+  public static class Patch_Manufactory_IncreaseProductionProgress
+  {
+    public static Manufactory ActiveManufactory { get; private set; }
+
+    public static void Prefix(Manufactory __instance)
+    {
+      ActiveManufactory = __instance;
+    }
+
+    public static void Postfix()
+    {
+      ActiveManufactory = null;
+    }
+  }
+
   // Patch BotFactory.Load to handle multiple BotSpec blueprints safely.
-  // Collects and caches every BotSpec blueprint so that all faction bot types
-  // (e.g. Bot.IronTeeth and Bot.Folktails, plus any modded factions) are available.
   [HarmonyPatch(typeof(BotFactory), nameof(BotFactory.Load))]
   public static class Patch_BotFactory_Load
   {
@@ -36,8 +54,7 @@ namespace Calloatti.OmniFactionDevTool
     }
   }
 
-  // Patch BotFactory.Create so spawned bots round-robin across all faction bot
-  // templates. Keeps the original body (just swaps which template it instantiates).
+  // Patch BotFactory.Create so spawned bots dynamically match the building that created them.
   [HarmonyPatch(typeof(BotFactory), nameof(BotFactory.Create), new[] { typeof(Vector3), typeof(Quaternion) })]
   public static class Patch_BotFactory_Create
   {
@@ -48,9 +65,28 @@ namespace Calloatti.OmniFactionDevTool
       var templates = Patch_BotFactory_Load.AllBotTemplates;
       if (templates.Count > 0)
       {
+        // 1. Try to spawn based on the building that is currently finishing production
+        var activeManufactory = Patch_Manufactory_IncreaseProductionProgress.ActiveManufactory;
+        if (activeManufactory != null)
+        {
+          // We use the FactionAssignmentHelper you added in WorkSystemPatches.cs
+          string factionId = FactionAssignmentHelper.GetFactionID(activeManufactory);
+
+          foreach (Blueprint template in templates)
+          {
+            TemplateSpec tSpec = template.GetSpec<TemplateSpec>();
+            if (tSpec != null && tSpec.TemplateName.IndexOf(factionId, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+              __instance._botTemplate = template;
+              return true; // Run original method with matched template
+            }
+          }
+        }
+
+        // 2. Fallback to round-robin (e.g., if you spawn a bot using Dev Tools out of thin air)
         __instance._botTemplate = templates[_botCounter++ % templates.Count];
       }
-      return true; // Run original method
+      return true;
     }
   }
 }

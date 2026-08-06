@@ -43,78 +43,117 @@ namespace Calloatti.OmniFactionDevTool
     }
   }
 
-  [HarmonyPatch(typeof(WorkplaceAssigner), "AssignStalestUnemployed")]
-  public static class Patch_WorkplaceAssigner_AssignStalestUnemployed
+  [HarmonyPatch(typeof(WorkplaceAssigner), "Assign")]
+  public static class Patch_WorkplaceAssigner_Assign
   {
-    public static bool Prefix(WorkplaceAssigner __instance, Workplace workplace)
+    public static bool Prefix(WorkplaceAssigner __instance)
     {
-      int num = workplace.DesiredWorkers - workplace.NumberOfAssignedWorkers;
+      var workplacesList = __instance._priorityOrderedWorkplaces._workplaces.Values;
+      if (workplacesList == null || workplacesList.Count == 0) return false;
+
+      bool anyUnemployed = __instance._unemployedWorkers.AnyUnemployed;
       HashSet<Worker> unemployedSet = __instance._unemployedWorkers._unemployed;
-      string workplaceFaction = FactionAssignmentHelper.GetFactionID(workplace);
 
-      while (num > 0 && unemployedSet.Count > 0)
+      // Iterate through all understaffed workplaces from highest priority to lowest
+      for (int i = 0; i < workplacesList.Count; i++)
       {
-        Worker selectedWorker = null;
-        foreach (Worker worker in unemployedSet)
+        WorkplacePriority understaffedWpPriority = workplacesList[i];
+        Workplace understaffedWorkplace = understaffedWpPriority.Workplace;
+
+        if (!understaffedWorkplace.Understaffed) continue;
+
+        string workplaceFaction = FactionAssignmentHelper.GetFactionID(understaffedWorkplace);
+
+        // 1. Try to assign available unemployed workers first
+        if (anyUnemployed)
         {
-          // Beavers do not have faction variants, so filtering only applies to Bots
-          bool isBot = worker.GetComponent<Bot>() != null;
-          if (!isBot || FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
+          int numNeeded = understaffedWorkplace.DesiredWorkers - understaffedWorkplace.NumberOfAssignedWorkers;
+          bool assignedAny = false;
+
+          while (numNeeded > 0 && unemployedSet.Count > 0)
           {
-            selectedWorker = worker;
-            break;
+            Worker selectedWorker = null;
+            foreach (Worker worker in unemployedSet)
+            {
+              bool isBot = worker.GetComponent<Bot>() != null;
+              if (!isBot || FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
+              {
+                selectedWorker = worker;
+                break;
+              }
+            }
+
+            if (selectedWorker != null)
+            {
+              understaffedWorkplace.AssignWorker(selectedWorker);
+              assignedAny = true;
+              numNeeded--;
+            }
+            else
+            {
+              break; // No more compatible unemployed workers for THIS workplace
+            }
+          }
+
+          if (assignedAny)
+          {
+            return false; // Successfully processed this tick, exit to allow other systems to run
           }
         }
 
-        if (selectedWorker != null)
+        // 2. If no unemployed workers were compatible, try reassigning from a lower priority staffed workplace
+        WorkplacePriority lowestPriorityStaffedWorkplace = null;
+        for (int num = workplacesList.Count - 1; num > i; num--)
         {
-          workplace.AssignWorker(selectedWorker);
-          num--;
-        }
-        else
-        {
-          break;
-        }
-      }
-
-      return false;
-    }
-  }
-
-  [HarmonyPatch(typeof(WorkplaceAssigner), "ReassignWorkersToHigherPriorityWorkplaces")]
-  public static class Patch_WorkplaceAssigner_ReassignWorkers
-  {
-    public static bool Prefix(WorkplaceAssigner __instance, WorkplacePriority understaffedWorkplace)
-    {
-      var workplaces = __instance._priorityOrderedWorkplaces._workplaces;
-      if (workplaces == null || workplaces.Count == 0) return false;
-
-      WorkplaceWorkerType workplaceWorkerType = understaffedWorkplace.Workplace.GetComponent<WorkplaceWorkerType>();
-      bool isBotWorkplace = workplaceWorkerType != null && workplaceWorkerType.WorkerType == "Bot";
-
-      string understaffedFaction = FactionAssignmentHelper.GetFactionID(understaffedWorkplace.Workplace);
-      WorkplacePriority lowestPriorityStaffedWorkplace = null;
-
-      for (int num = workplaces.Count - 1; num >= 0; num--)
-      {
-        WorkplacePriority wp = workplaces.Values[num];
-        if (wp.Workplace.NumberOfAssignedWorkers > 0)
-        {
-          // Beavers do not have faction variants, so filtering only applies to Bots
-          if (!isBotWorkplace || FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(wp.Workplace), understaffedFaction))
+          WorkplacePriority staffedWp = workplacesList[num];
+          if (staffedWp.Workplace.NumberOfAssignedWorkers > 0 && understaffedWpPriority.Priority > staffedWp.Priority)
           {
-            lowestPriorityStaffedWorkplace = wp;
-            break;
+            var assignedWorkers = staffedWp.Workplace.AssignedWorkers;
+
+            // Search backwards to safely identify a compatible worker
+            for (int w = assignedWorkers.Count - 1; w >= 0; w--)
+            {
+              Worker worker = assignedWorkers[w];
+              bool isBot = worker.GetComponent<Bot>() != null;
+              if (!isBot || FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
+              {
+                lowestPriorityStaffedWorkplace = staffedWp;
+                break;
+              }
+            }
+
+            if (lowestPriorityStaffedWorkplace != null) break;
           }
         }
+
+        // If a compatible lower-priority workplace was found, migrate as many workers as possible
+        if (lowestPriorityStaffedWorkplace != null)
+        {
+          var assignedWorkers = lowestPriorityStaffedWorkplace.Workplace.AssignedWorkers;
+          int num = assignedWorkers.Count - 1;
+
+          while (num >= 0)
+          {
+            Worker worker = assignedWorkers[num];
+            bool isBot = worker.GetComponent<Bot>() != null;
+
+            if (!isBot || FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
+            {
+              lowestPriorityStaffedWorkplace.Workplace.UnassignWorker(worker);
+              understaffedWorkplace.AssignWorker(worker);
+
+              if (!understaffedWorkplace.Understaffed)
+              {
+                break;
+              }
+            }
+            num--;
+          }
+          return false;
+        }
       }
 
-      if (lowestPriorityStaffedWorkplace != null && understaffedWorkplace.Priority > lowestPriorityStaffedWorkplace.Priority)
-      {
-        WorkplaceAssigner.ReassignWorkers(lowestPriorityStaffedWorkplace.Workplace, understaffedWorkplace.Workplace);
-      }
-
-      return false;
+      return false; // Skip vanilla execution entirely as we handled the full assignment logic
     }
   }
 }

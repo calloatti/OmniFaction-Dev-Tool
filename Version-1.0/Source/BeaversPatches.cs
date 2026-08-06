@@ -2,10 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
+using Timberborn.BaseComponentSystem;
 using Timberborn.Beavers;
 using Timberborn.BlueprintSystem;
 using Timberborn.Characters;
 using Timberborn.FactionSystem;
+using Timberborn.Reproduction;
 using Timberborn.TemplateInstantiation;
 using Timberborn.TemplateSystem;
 using UnityEngine;
@@ -64,6 +66,39 @@ namespace Calloatti.OmniFactionDevTool
       return PickTemplate(AllChildTemplates, ref _childCounter);
     }
 
+    // Pick the factioned template matching a faction id (e.g. the spawning building's or child's faction).
+    // Returns null when the faction is unknown/empty or no matching template exists so the caller can
+    // fall back to round-robin.
+    public static Blueprint PickAdultTemplateForFaction(string factionId)
+    {
+      return PickTemplateForFaction(AllAdultTemplates, factionId);
+    }
+
+    public static Blueprint PickChildTemplateForFaction(string factionId)
+    {
+      return PickTemplateForFaction(AllChildTemplates, factionId);
+    }
+
+    private static Blueprint PickTemplateForFaction(List<Blueprint> templates, string factionId)
+    {
+      if (string.IsNullOrEmpty(factionId) || templates.Count == 0)
+      {
+        return null;
+      }
+
+      foreach (Blueprint blueprint in templates)
+      {
+        string templateName = blueprint.GetSpec<TemplateSpec>()?.TemplateName;
+        if (!string.IsNullOrEmpty(templateName)
+            && templateName.IndexOf(factionId, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+          return blueprint;
+        }
+      }
+
+      return null;
+    }
+
     private static Blueprint PickTemplate(List<Blueprint> templates, ref int counter)
     {
       if (templates.Count == 0)
@@ -88,6 +123,30 @@ namespace Calloatti.OmniFactionDevTool
     }
   }
 
+  // Thread the spawning building's faction into the next Create* call so newborns (BreedingPods,
+  // ProcreationHouses, dwelling UI spawns) match their building's faction. Modded buildings that
+  // don't resolve to a faction leave PendingFaction null and the caller falls back to round-robin.
+  [HarmonyPatch(typeof(NewbornSpawner), nameof(NewbornSpawner.SpawnAdult))]
+  [HarmonyPatch(typeof(NewbornSpawner), nameof(NewbornSpawner.SpawnChild))]
+  public static class Patch_NewbornSpawner
+  {
+    public static string PendingFaction;
+
+    public static void Prefix(BaseComponent spawner)
+    {
+      PendingFaction = FactionAssignmentHelper.GetFactionID(spawner);
+      if (string.Equals(PendingFaction, "Common", StringComparison.OrdinalIgnoreCase))
+      {
+        PendingFaction = null;
+      }
+    }
+
+    public static void Postfix()
+    {
+      PendingFaction = null;
+    }
+  }
+
   // Set _adultTemplate to a factioned template (round-robin) before the original Create runs.
   [HarmonyPatch(typeof(BeaverFactory), nameof(BeaverFactory.CreateAdult))]
   public static class Patch_BeaverFactory_CreateAdult
@@ -103,13 +162,16 @@ namespace Calloatti.OmniFactionDevTool
     }
   }
 
-  // Set _childTemplate to a factioned template (round-robin) before the original Create runs.
+  // Set _childTemplate to the spawning building's factioned template when available (newborns from
+  // BreedingPods/ProcreationHouses/dwelling UI), falling back to round-robin. Also covers
+  // CreateNewbornChild, which delegates to CreateChild.
   [HarmonyPatch(typeof(BeaverFactory), nameof(BeaverFactory.CreateChild))]
   public static class Patch_BeaverFactory_CreateChild
   {
     public static bool Prefix(BeaverFactory __instance)
     {
-      var template = Patch_BeaverFactory_Load.PickChildTemplate();
+      var template = Patch_BeaverFactory_Load.PickChildTemplateForFaction(Patch_NewbornSpawner.PendingFaction)
+                     ?? Patch_BeaverFactory_Load.PickChildTemplate();
       if (template != null)
       {
         __instance._childTemplate = template;
@@ -118,13 +180,15 @@ namespace Calloatti.OmniFactionDevTool
     }
   }
 
-  // Set _adultTemplate to a factioned template (round-robin) before the original Create runs.
+  // Set _adultTemplate to the spawning building's factioned template when available (BreedingPods),
+  // falling back to round-robin.
   [HarmonyPatch(typeof(BeaverFactory), nameof(BeaverFactory.CreateNewbornAdult))]
   public static class Patch_BeaverFactory_CreateNewbornAdult
   {
     public static bool Prefix(BeaverFactory __instance)
     {
-      var template = Patch_BeaverFactory_Load.PickAdultTemplate();
+      var template = Patch_BeaverFactory_Load.PickAdultTemplateForFaction(Patch_NewbornSpawner.PendingFaction)
+                     ?? Patch_BeaverFactory_Load.PickAdultTemplate();
       if (template != null)
       {
         __instance._adultTemplate = template;
@@ -133,13 +197,15 @@ namespace Calloatti.OmniFactionDevTool
     }
   }
 
-  // Set _adultTemplate to a factioned template (round-robin) before the original Create runs.
+  // Set _adultTemplate to the child's own factioned template so a Folktails child grows into a
+  // Folktails adult, falling back to round-robin.
   [HarmonyPatch(typeof(BeaverFactory), nameof(BeaverFactory.CreateAdultFromChild))]
   public static class Patch_BeaverFactory_CreateAdultFromChild
   {
-    public static bool Prefix(BeaverFactory __instance)
+    public static bool Prefix(BeaverFactory __instance, Child child)
     {
-      var template = Patch_BeaverFactory_Load.PickAdultTemplate();
+      var template = Patch_BeaverFactory_Load.PickAdultTemplateForFaction(FactionAssignmentHelper.GetFactionID(child))
+                     ?? Patch_BeaverFactory_Load.PickAdultTemplate();
       if (template != null)
       {
         __instance._adultTemplate = template;

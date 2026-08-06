@@ -19,6 +19,8 @@
     <Publicize Include="Timberborn.TemplateCollectionSystem" />
     <Publicize Include="Timberborn.WonderPlanes" />
     <Publicize Include="Timberborn.WorkSystem" />
+    <Publicize Include="Timberborn.Wellbeing" />
+    <Publicize Include="Timberborn.WellbeingUI" />
   </ItemGroup>
   
 </Project>

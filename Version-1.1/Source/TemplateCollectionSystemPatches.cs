@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using HarmonyLib;
@@ -15,20 +14,26 @@ namespace Calloatti.OmniFactionDevTool
 {
   public static class FactionBlueprintCache
   {
+    // Maps TemplateName -> Faction DisplayNameLocKey (e.g., "DevPowerGenerator" -> "Faction.Folktails.DisplayName")
     public static Dictionary<string, string> TemplateToFactionLocKey { get; } = new Dictionary<string, string>();
-    public static Dictionary<string, string> TemplateToFactionId { get; } = new Dictionary<string, string>();
   }
 
+  // Deduplicate blueprint instances in TemplateCollectionService by TemplateName
+  // AND safely map which blueprint belongs to which faction.
   [HarmonyPatch(typeof(TemplateCollectionService), nameof(TemplateCollectionService.Load))]
   public static class Patch_TemplateCollectionService_Load
   {
     public static void Postfix(TemplateCollectionService __instance)
     {
-      if (__instance?.AllTemplates == null) return;
+      if (__instance?.AllTemplates == null)
+      {
+        return;
+      }
 
+      // --- 1. Build Faction Blueprint Cache ---
       FactionBlueprintCache.TemplateToFactionLocKey.Clear();
-      FactionBlueprintCache.TemplateToFactionId.Clear();
       ISpecService specService = __instance._specService;
+
       if (specService != null)
       {
         var factionSpecs = specService.GetSpecs<FactionSpec>();
@@ -36,8 +41,8 @@ namespace Calloatti.OmniFactionDevTool
 
         foreach (FactionSpec faction in factionSpecs)
         {
+          // FactionSpec uses a private property for the LocKey.
           string locKey = faction.DisplayNameLocKey;
-          string factionId = faction.Id;
 
           foreach (string colId in faction.TemplateCollectionIds)
           {
@@ -48,12 +53,14 @@ namespace Calloatti.OmniFactionDevTool
               {
                 Blueprint bp = specService.GetBlueprint(bpAsset.Path);
                 TemplateSpec tSpec = bp?.GetSpec<TemplateSpec>();
+
                 if (tSpec != null && !string.IsNullOrEmpty(tSpec.TemplateName))
                 {
+                  // Only map it if it hasn't been claimed yet. This ensures faction-specific 
+                  // collections claim their buildings before shared/common collections evaluate.
                   if (!FactionBlueprintCache.TemplateToFactionLocKey.ContainsKey(tSpec.TemplateName))
                   {
                     FactionBlueprintCache.TemplateToFactionLocKey[tSpec.TemplateName] = locKey;
-                    FactionBlueprintCache.TemplateToFactionId[tSpec.TemplateName] = factionId;
                   }
                 }
               }
@@ -62,17 +69,32 @@ namespace Calloatti.OmniFactionDevTool
         }
       }
 
-      // Deduplicate templates (unchanged)
+      // --- 2. Deduplicate Templates ---
       List<Blueprint> filteredTemplates = new List<Blueprint>();
       HashSet<string> seenTemplateNames = new HashSet<string>();
       HashSet<Blueprint> seenBlueprints = new HashSet<Blueprint>();
 
       foreach (Blueprint blueprint in __instance.AllTemplates)
       {
-        if (blueprint == null || !seenBlueprints.Add(blueprint)) continue;
+        if (blueprint == null || !seenBlueprints.Add(blueprint))
+        {
+          continue; // Skip null or duplicate blueprint object references
+        }
+
         TemplateSpec templateSpec = blueprint.GetSpec<TemplateSpec>();
         string templateName = templateSpec?.TemplateName;
-        if (!string.IsNullOrEmpty(templateName) && !seenTemplateNames.Add(templateName)) continue;
+
+        // Deduplicate by TemplateName (e.g., DevPowerGenerator).
+        // "First wins" - the current faction's templates are enumerated first
+        // (see FactionCollectionIdsAggregator), so they keep the name.
+        if (!string.IsNullOrEmpty(templateName))
+        {
+          if (!seenTemplateNames.Add(templateName))
+          {
+            continue; // Skip duplicate template name (keeps the first loaded version)
+          }
+        }
+
         filteredTemplates.Add(blueprint);
       }
 
@@ -80,6 +102,7 @@ namespace Calloatti.OmniFactionDevTool
     }
   }
 
+  // Intercept LabeledEntity.DisplayName to append the faction suffix globally
   [HarmonyPatch(typeof(LabeledEntity), "get_DisplayName")]
   public static class Patch_LabeledEntity_get_DisplayName
   {
@@ -88,18 +111,16 @@ namespace Calloatti.OmniFactionDevTool
       TemplateSpec templateSpec = __instance.GetComponent<TemplateSpec>();
       if (templateSpec != null && !string.IsNullOrEmpty(templateSpec.TemplateName))
       {
-        if (FactionBlueprintCache.TemplateToFactionLocKey.TryGetValue(templateSpec.TemplateName, out string locKey)
-            && !string.IsNullOrEmpty(locKey))
+        if (FactionBlueprintCache.TemplateToFactionLocKey.TryGetValue(templateSpec.TemplateName, out string factionLocKey) && !string.IsNullOrEmpty(factionLocKey))
         {
-          string factionName = ____loc.T(locKey);
-          if (!string.IsNullOrEmpty(factionName) && factionName != locKey)
+          string factionName = ____loc.T(factionLocKey);
+          string suffix = $" ({factionName})";
+
+          // Ensure we only append the suffix once, and only to valid localized strings
+          if (!string.IsNullOrEmpty(__result) && !__result.EndsWith(suffix))
           {
-            string suffix = $" ({factionName})";
-            if (!string.IsNullOrEmpty(__result) && !__result.EndsWith(suffix))
-            {
-              __result += suffix;
-              ____displayName = __result;
-            }
+            __result += suffix;
+            ____displayName = __result; // Update the LabeledEntity's internal cache
           }
         }
       }

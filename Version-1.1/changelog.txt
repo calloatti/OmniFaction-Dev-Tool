@@ -1,8 +1,5 @@
-* Game Version: 1.0.0.0 - Mod Version: 1.1.5
+* Game Version: 1.1.0.0 - Mod Version: 1.1.5
 - Added Version-1.1 folder
-- Dev-tool beaver and bot spawns now use the nearest district center's faction (round-robin as fallback)
-- Vanilla need order restored (needs no longer display alphabetically)
-- District Crossings are staffable by any faction regardless of their factioned template
 * Game Version: 1.0.0.0 - Mod Version: 1.1.4
 - Beavers spawning in buildings inherit the building faction
 - Fixed worker assignments stalling when top-priority buildings are faction-locked.

@@ -1,83 +1,79 @@
 ﻿using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using Timberborn.TemplateAttachmentSystem;
 using UnityEngine;
 
 namespace Calloatti.OmniFactionDevTool
 {
-  // Intercept the creation of visual attachments (like hats or backpacks).
-  // Dynamically rewrite the requested attachment ID for N factions so cross-faction 
-  // workers equip their own faction's version of the outfit instead of crashing.
   [HarmonyPatch(typeof(TemplateAttachments), nameof(TemplateAttachments.GetOrCreateAttachment))]
   public static class Patch_TemplateAttachments_GetOrCreateAttachment
   {
+    private static readonly Dictionary<(string, string), string> _rewrittenIdCache = new Dictionary<(string, string), string>();
+    private static readonly Dictionary<TemplateAttachmentsSpec, HashSet<string>> _specAttachmentIdCache = new Dictionary<TemplateAttachmentsSpec, HashSet<string>>();
+
     public static bool Prefix(TemplateAttachments __instance, ref string id, ref TemplateAttachment __result)
     {
-      // 1. Find the actual faction of the entity (the worker/bot) receiving the attachment
       string entityFaction = FactionAssignmentHelper.GetFactionID(__instance);
-
-      // 2. Dynamically check against all loaded factions (N factions)
       if (!string.IsNullOrEmpty(entityFaction) && entityFaction != "Common")
       {
-        foreach (string knownFaction in FactionNeedCache.FactionAllowedNeeds.Keys)
+        string originalId = id;
+        var key = (originalId, entityFaction);
+        if (!_rewrittenIdCache.TryGetValue(key, out string rewrittenId))
         {
-          if (!knownFaction.Equals(entityFaction, StringComparison.OrdinalIgnoreCase) &&
-              id.IndexOf(knownFaction, StringComparison.OrdinalIgnoreCase) >= 0)
+          rewrittenId = originalId;
+          foreach (string knownFaction in FactionNeedCache.FactionAllowedNeeds.Keys)
           {
-            // Swap the other faction's name in the attachment ID with the entity's faction name
-            id = ReplaceIgnoreCase(id, knownFaction, entityFaction);
-            break;
+            if (!knownFaction.Equals(entityFaction, StringComparison.OrdinalIgnoreCase) &&
+                originalId.IndexOf(knownFaction, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+              rewrittenId = ReplaceIgnoreCase(originalId, knownFaction, entityFaction);
+              break;
+            }
           }
+          _rewrittenIdCache[key] = rewrittenId;
         }
+        id = rewrittenId;
       }
 
-      // 3. If it's already generated and in the cache with the new ID, return it immediately
       if (__instance._attachmentCache.TryGetValue(id, out var cachedAttachment))
       {
         __result = cachedAttachment;
-        return false; // Skip original method
+        return false;
       }
 
-      // 4. Check if the requested attachment ID actually exists in this entity's spec
-      bool existsInSpec = false;
-      if (__instance._templateAttachmentsSpec != null && __instance._templateAttachmentsSpec.Attachments != null)
+      bool exists = false;
+      var spec = __instance._templateAttachmentsSpec;
+      if (spec != null && spec.Attachments != null)
       {
-        foreach (var attachmentDef in __instance._templateAttachmentsSpec.Attachments)
+        if (!_specAttachmentIdCache.TryGetValue(spec, out HashSet<string> idSet))
         {
-          if (attachmentDef.AttachmentId == id)
-          {
-            existsInSpec = true;
-            break;
-          }
+          idSet = new HashSet<string>();
+          foreach (var def in spec.Attachments)
+            idSet.Add(def.AttachmentId);
+          _specAttachmentIdCache[spec] = idSet;
         }
+        exists = idSet.Contains(id);
       }
 
-      // 5. FAILSAFE: If the attachment STILL does not exist in the spec, generate a dummy instead of crashing
-      if (!existsInSpec)
+      if (!exists)
       {
         GameObject dummyObj = new GameObject("DummyMissingAttachment_" + id);
         dummyObj.transform.SetParent(__instance.GameObject.transform);
         dummyObj.SetActive(false);
-
         TemplateAttachment dummyAttachment = new TemplateAttachment(dummyObj);
-
         __instance._attachmentCache.Add(id, dummyAttachment);
         __result = dummyAttachment;
-
-        return false; // Skip original method to prevent KeyNotFoundException
+        return false;
       }
 
-      // 6. If it does exist in the spec, let the vanilla game instantiate it normally
       return true;
     }
 
     private static string ReplaceIgnoreCase(string input, string search, string replacement)
     {
       int index = input.IndexOf(search, StringComparison.OrdinalIgnoreCase);
-      if (index < 0)
-      {
-        return input;
-      }
+      if (index < 0) return input;
       return input.Substring(0, index) + replacement + input.Substring(index + search.Length);
     }
   }

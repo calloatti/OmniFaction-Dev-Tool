@@ -54,24 +54,42 @@ namespace Calloatti.OmniFactionDevTool
     }
   }
 
-  // Patch BotFactory.Create so spawned bots dynamically match the building that created them.
+  // Patch BotFactory.Create so spawned bots dynamically match the building that created them,
+  // the DC-spawn faction when one is pending (OmniFactionService starting population), or the
+  // faction of the nearest District Center to the spawn position (dev-tool spawns), falling back
+  // to round-robin.
   [HarmonyPatch(typeof(BotFactory), nameof(BotFactory.Create), new[] { typeof(Vector3), typeof(Quaternion) })]
   public static class Patch_BotFactory_Create
   {
     private static int _botCounter;
 
-    public static bool Prefix(BotFactory __instance)
+    public static bool Prefix(BotFactory __instance, Vector3 position)
     {
       var templates = Patch_BotFactory_Load.AllBotTemplates;
       if (templates.Count > 0)
       {
-        // 1. Try to spawn based on the building that is currently finishing production
-        var activeManufactory = Patch_Manufactory_IncreaseProductionProgress.ActiveManufactory;
-        if (activeManufactory != null)
-        {
-          // We use the FactionAssignmentHelper you added in WorkSystemPatches.cs
-          string factionId = FactionAssignmentHelper.GetFactionID(activeManufactory);
+        // 1. Try the DC-spawn faction when one is pending (OmniFactionService starting population)
+        string factionId = StartingBeaverSpawn.PendingFaction;
 
+        // 2. Try to spawn based on the building that is currently finishing production
+        if (string.IsNullOrEmpty(factionId))
+        {
+          var activeManufactory = Patch_Manufactory_IncreaseProductionProgress.ActiveManufactory;
+          if (activeManufactory != null)
+          {
+            factionId = FactionAssignmentHelper.GetFactionID(activeManufactory);
+          }
+        }
+
+        // 3. Try the nearest District Center's faction (dev-tool spawn at cursor)
+        if (string.IsNullOrEmpty(factionId))
+        {
+          factionId = OmniFactionService.FindNearestDistrictFaction(position);
+        }
+
+        // 4. If a faction id was resolved, spawn the matching factioned template
+        if (!string.IsNullOrEmpty(factionId))
+        {
           foreach (Blueprint template in templates)
           {
             TemplateSpec tSpec = template.GetSpec<TemplateSpec>();
@@ -83,7 +101,7 @@ namespace Calloatti.OmniFactionDevTool
           }
         }
 
-        // 2. Fallback to round-robin (e.g., if you spawn a bot using Dev Tools out of thin air)
+        // 5. Fallback to round-robin (e.g., if no DC/building faction could be resolved)
         __instance._botTemplate = templates[_botCounter++ % templates.Count];
       }
       return true;

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using HarmonyLib;
 using Timberborn.BaseComponentSystem;
-using Timberborn.Bots;
+using Timberborn.DistributionSystem;
 using Timberborn.TemplateSystem;
 using Timberborn.WorkSystem;
 
@@ -12,34 +12,53 @@ namespace Calloatti.OmniFactionDevTool
   {
     public static string GetFactionID(BaseComponent component)
     {
-      TemplateSpec templateSpec = component.GetComponent<TemplateSpec>();
+      if (component == null) return "Common";
 
-      // 1. Try to resolve via the global template cache (Best for buildings)
+      // 1. Check entity cache (O(1))
+      string cached = OmniFactionService.GetCachedFaction(component.GameObject);
+      if (!string.IsNullOrEmpty(cached)) return cached;
+
+      // 2. Template cache for buildings (from FactionBlueprintCache)
+      TemplateSpec templateSpec = component.GetComponent<TemplateSpec>();
       if (templateSpec != null && !string.IsNullOrEmpty(templateSpec.TemplateName))
       {
-        if (FactionBlueprintCache.TemplateToFactionLocKey.TryGetValue(templateSpec.TemplateName, out string locKey))
-        {
-          if (locKey.IndexOf("Folktails", StringComparison.OrdinalIgnoreCase) >= 0) return "Folktails";
-          if (locKey.IndexOf("IronTeeth", StringComparison.OrdinalIgnoreCase) >= 0) return "IronTeeth";
-          return locKey;
-        }
+        if (FactionBlueprintCache.TemplateToFactionId.TryGetValue(templateSpec.TemplateName, out string factionId))
+          return factionId;
       }
 
-      // 2. Fallback to direct name matching
+      // 3. Fallback: substring match on entity name (only for uncached entities, e.g., during creation)
       string nameToCheck = templateSpec != null && !string.IsNullOrEmpty(templateSpec.TemplateName)
           ? templateSpec.TemplateName
           : component.Name;
-
-      if (nameToCheck.IndexOf("Folktails", StringComparison.OrdinalIgnoreCase) >= 0) return "Folktails";
-      if (nameToCheck.IndexOf("IronTeeth", StringComparison.OrdinalIgnoreCase) >= 0) return "IronTeeth";
+      foreach (string knownFactionId in FactionNeedCache.FactionAllowedNeeds.Keys)
+      {
+        if (!string.IsNullOrEmpty(knownFactionId)
+            && nameToCheck.IndexOf(knownFactionId, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+          return knownFactionId;
+        }
+      }
 
       return "Common";
     }
 
-    // Safely allows Folktails or IronTeeth to work at shared "Common" buildings
     public static bool CanWorkAt(string workerFaction, string workplaceFaction)
     {
       return workplaceFaction == "Common" || workerFaction == "Common" || workerFaction == workplaceFaction;
+    }
+
+    // District Crossings link two districts and must be staffable by any faction, regardless of
+    // the crossing's own factioned template. Treating them as "Common" lets CanWorkAt's wildcard
+    // admit workers of every faction.
+    public static string GetWorkplaceFaction(Workplace workplace)
+    {
+      if (workplace.GetComponent<DistrictCrossing>() != null) return "Common";
+      return GetFactionID(workplace);
+    }
+
+    public static bool CanResideAt(string residentFaction, string dwellingFaction)
+    {
+      return CanWorkAt(residentFaction, dwellingFaction);
     }
   }
 
@@ -51,57 +70,43 @@ namespace Calloatti.OmniFactionDevTool
       var workplacesList = __instance._priorityOrderedWorkplaces._workplaces.Values;
       if (workplacesList == null || workplacesList.Count == 0) return false;
 
-      bool anyUnemployed = __instance._unemployedWorkers.AnyUnemployed;
-      HashSet<Worker> unemployedSet = __instance._unemployedWorkers._unemployed;
+      // Use a HashSet for O(1) removal. Even when empty, we must continue so understaffed
+      // workplaces can still be staffed by migrating compatible workers from lower-priority
+      // workplaces (vanilla ReassignWorkersToHigherPriorityWorkplaces); the fill loop below
+      // simply no-ops when there are no unemployed workers.
+      HashSet<Worker> availableUnemployed = new HashSet<Worker>(__instance._unemployedWorkers._unemployed);
 
-      // Iterate through all understaffed workplaces from highest priority to lowest
       for (int i = 0; i < workplacesList.Count; i++)
       {
         WorkplacePriority understaffedWpPriority = workplacesList[i];
         Workplace understaffedWorkplace = understaffedWpPriority.Workplace;
+        if (!understaffedWorkplace.Understaffed) continue;
+
+        string workplaceFaction = FactionAssignmentHelper.GetWorkplaceFaction(understaffedWorkplace);
+        int numNeeded = understaffedWorkplace.DesiredWorkers - understaffedWorkplace.NumberOfAssignedWorkers;
+
+        // Try to assign compatible unemployed workers
+        while (numNeeded > 0 && availableUnemployed.Count > 0)
+        {
+          Worker selectedWorker = null;
+          foreach (Worker worker in availableUnemployed)
+          {
+            if (FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
+            {
+              selectedWorker = worker;
+              break;
+            }
+          }
+          if (selectedWorker == null) break;
+
+          availableUnemployed.Remove(selectedWorker);
+          understaffedWorkplace.AssignWorker(selectedWorker);
+          numNeeded--;
+        }
 
         if (!understaffedWorkplace.Understaffed) continue;
 
-        string workplaceFaction = FactionAssignmentHelper.GetFactionID(understaffedWorkplace);
-
-        // 1. Try to assign available unemployed workers first
-        if (anyUnemployed)
-        {
-          int numNeeded = understaffedWorkplace.DesiredWorkers - understaffedWorkplace.NumberOfAssignedWorkers;
-          bool assignedAny = false;
-
-          while (numNeeded > 0 && unemployedSet.Count > 0)
-          {
-            Worker selectedWorker = null;
-            foreach (Worker worker in unemployedSet)
-            {
-              bool isBot = worker.GetComponent<Bot>() != null;
-              if (!isBot || FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
-              {
-                selectedWorker = worker;
-                break;
-              }
-            }
-
-            if (selectedWorker != null)
-            {
-              understaffedWorkplace.AssignWorker(selectedWorker);
-              assignedAny = true;
-              numNeeded--;
-            }
-            else
-            {
-              break; // No more compatible unemployed workers for THIS workplace
-            }
-          }
-
-          if (assignedAny)
-          {
-            return false; // Successfully processed this tick, exit to allow other systems to run
-          }
-        }
-
-        // 2. If no unemployed workers were compatible, try reassigning from a lower priority staffed workplace
+        // Reassignment from lower-priority workplaces
         WorkplacePriority lowestPriorityStaffedWorkplace = null;
         for (int num = workplacesList.Count - 1; num > i; num--)
         {
@@ -109,51 +114,38 @@ namespace Calloatti.OmniFactionDevTool
           if (staffedWp.Workplace.NumberOfAssignedWorkers > 0 && understaffedWpPriority.Priority > staffedWp.Priority)
           {
             var assignedWorkers = staffedWp.Workplace.AssignedWorkers;
-
-            // Search backwards to safely identify a compatible worker
             for (int w = assignedWorkers.Count - 1; w >= 0; w--)
             {
               Worker worker = assignedWorkers[w];
-              bool isBot = worker.GetComponent<Bot>() != null;
-              if (!isBot || FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
+              if (FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
               {
                 lowestPriorityStaffedWorkplace = staffedWp;
                 break;
               }
             }
-
             if (lowestPriorityStaffedWorkplace != null) break;
           }
         }
 
-        // If a compatible lower-priority workplace was found, migrate as many workers as possible
         if (lowestPriorityStaffedWorkplace != null)
         {
           var assignedWorkers = lowestPriorityStaffedWorkplace.Workplace.AssignedWorkers;
-          int num = assignedWorkers.Count - 1;
-
-          while (num >= 0)
+          int idx = assignedWorkers.Count - 1;
+          while (idx >= 0)
           {
-            Worker worker = assignedWorkers[num];
-            bool isBot = worker.GetComponent<Bot>() != null;
-
-            if (!isBot || FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
+            Worker worker = assignedWorkers[idx];
+            if (FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
             {
               lowestPriorityStaffedWorkplace.Workplace.UnassignWorker(worker);
               understaffedWorkplace.AssignWorker(worker);
-
-              if (!understaffedWorkplace.Understaffed)
-              {
-                break;
-              }
+              if (!understaffedWorkplace.Understaffed) break;
             }
-            num--;
+            idx--;
           }
-          return false;
         }
       }
 
-      return false; // Skip vanilla execution entirely as we handled the full assignment logic
+      return false;
     }
   }
 }

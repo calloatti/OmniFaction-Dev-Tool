@@ -1,7 +1,7 @@
 ﻿using HarmonyLib;
 using Timberborn.TemplateSystem;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // Failsafe to bypass duplicate name exception during mapping
   [HarmonyPatch(typeof(TemplateNameMapper), "TryAddTemplate")]

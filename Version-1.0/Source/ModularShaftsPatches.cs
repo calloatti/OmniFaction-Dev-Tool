@@ -5,7 +5,7 @@ using Timberborn.RootProviders;
 using Timberborn.TemplateSystem;
 using UnityEngine;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // Patch ShaftFrameFactory.Load to handle multiple ModularShaftPartsSpec blueprints safely
   [HarmonyPatch(typeof(ShaftFrameFactory), nameof(ShaftFrameFactory.Load))]

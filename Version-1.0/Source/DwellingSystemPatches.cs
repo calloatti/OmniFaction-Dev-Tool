@@ -1,7 +1,7 @@
 using HarmonyLib;
 using Timberborn.DwellingSystem;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // Faction-restrict home assignment: a beaver may only be auto-assigned to its own faction's
   // dwelling. Unlike workplaces, dwellings have no priority ordering, so gating the single

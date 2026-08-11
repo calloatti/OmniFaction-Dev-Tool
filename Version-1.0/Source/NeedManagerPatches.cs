@@ -13,7 +13,7 @@ using Timberborn.NeedSpecs;
 using Timberborn.NeedSystem;
 using Timberborn.SingletonSystem;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   public static class FactionNeedCache
   {

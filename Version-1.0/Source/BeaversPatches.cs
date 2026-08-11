@@ -13,7 +13,7 @@ using Timberborn.TemplateInstantiation;
 using Timberborn.TemplateSystem;
 using UnityEngine;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // Patch BeaverFactory.Load to handle multiple AdultSpec and ChildSpec blueprints safely,
   // caching every beaver template so Create* calls can round-robin between the factions.
@@ -31,11 +31,13 @@ namespace Calloatti.OmniFactionDevTool
       var adultSpecs = ____templateService.GetAll<AdultSpec>().ToList();
       var childSpecs = ____templateService.GetAll<ChildSpec>().ToList();
 
+      // Clear before the branch so the fallback path (missing specs) also drops any stale
+      // cross-session template lists left over from a previous game.
+      AllAdultTemplates.Clear();
+      AllChildTemplates.Clear();
+
       if (adultSpecs.Count > 0 && childSpecs.Count > 0)
       {
-        AllAdultTemplates.Clear();
-        AllChildTemplates.Clear();
-
         foreach (var adultSpec in adultSpecs)
         {
           ____templateInstantiator.CacheInstance(adultSpec.Blueprint);
@@ -373,26 +375,21 @@ namespace Calloatti.OmniFactionDevTool
 
         if (factionsWithTextures.Count == 0)
         {
-          Debug.Log($"[OmniFactionDevTool] BeaverTextureSetter.Start: '{entityName}' matched no faction and none available for round-robin; falling back to original");
           return true; // Fall back to original method (current faction's textures)
         }
 
         faction = factionsWithTextures[_factionCounter++ % factionsWithTextures.Count];
-        Debug.Log($"[OmniFactionDevTool] BeaverTextureSetter.Start: '{entityName}' matched no faction; round-robin -> {faction.Id}");
       }
       else
       {
-        Debug.Log($"[OmniFactionDevTool] BeaverTextureSetter.Start: '{entityName}' matched faction {faction.Id}");
       }
 
       if (FactionFurHelper.TryApplyFactionFur(faction, materialModifier, isChild))
       {
         var textures = isChild ? faction.ChildTextures : faction.Textures;
-        Debug.Log($"[OmniFactionDevTool] BeaverTextureSetter.Start: '{entityName}' applied {faction.Id} texture '{textures[0].Asset.name}'");
         return false; // Skip original method
       }
 
-      Debug.Log($"[OmniFactionDevTool] BeaverTextureSetter.Start: '{entityName}' matched faction {faction.Id} but it has no {(isChild ? "child " : "")}textures; falling back to original");
       return true; // Fall back to original method if the matched faction has no textures
     }
   }

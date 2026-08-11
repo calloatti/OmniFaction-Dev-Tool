@@ -10,7 +10,7 @@ using Timberborn.WorkSystemUI;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // A building's vacant character slots (dwelling lodges, workplace worker rows) render their
   // placeholder portrait from FactionService.Current, so in the multi-faction dev map every empty

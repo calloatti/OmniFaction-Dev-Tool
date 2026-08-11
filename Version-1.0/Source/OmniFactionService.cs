@@ -1,12 +1,16 @@
+using Bindito.Core;
 using System;
 using System.Collections.Generic;
-using Bindito.Core;
+using System.IO;
+using System.Linq;
+using Timberborn.AssetSystem;
 using Timberborn.BaseComponentSystem;
 using Timberborn.BeaverContaminationSystem;
 using Timberborn.Beavers;
 using Timberborn.BlockingSystem;
 using Timberborn.BlockSystem;
 using Timberborn.Bots;
+using Timberborn.BottomBarSystem;
 using Timberborn.Buildings;
 using Timberborn.Characters;
 using Timberborn.DwellingSystem;
@@ -14,16 +18,20 @@ using Timberborn.GameDistricts;
 using Timberborn.GameFactionSystem;
 using Timberborn.GameSceneLoading;
 using Timberborn.Goods;
+using Timberborn.InputSystem;
 using Timberborn.NewGameConfigurationSystem;
 using Timberborn.Population;
 using Timberborn.SceneLoading;
 using Timberborn.SimpleOutputBuildings;
 using Timberborn.SingletonSystem;
+using Timberborn.ToolButtonSystem;
+using Timberborn.ToolSystem;
 using Timberborn.UILayoutSystem;
 using Timberborn.WorkSystem;
 using UnityEngine;
+using UnityEngine.UIElements;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   [Context("Game")]
   public class OmniFactionConfigurator : Configurator
@@ -31,6 +39,26 @@ namespace Calloatti.OmniFactionDevTool
     protected override void Configure()
     {
       Bind<OmniFactionService>().AsSingleton();
+      Bind<FactionToolFilter>().AsSingleton();
+      Bind<FactionFilterButton>().AsSingleton();
+      MultiBind<BottomBarModule>().ToProvider<FactionFilterModuleProvider>().AsSingleton();
+    }
+
+    private class FactionFilterModuleProvider : IProvider<BottomBarModule>
+    {
+      private readonly FactionFilterButton _factionFilterButton;
+
+      public FactionFilterModuleProvider(FactionFilterButton factionFilterButton)
+      {
+        _factionFilterButton = factionFilterButton;
+      }
+
+      public BottomBarModule Get()
+      {
+        BottomBarModule.Builder builder = new BottomBarModule.Builder();
+        builder.AddRightSectionElement(_factionFilterButton);
+        return builder.Build();
+      }
     }
   }
 
@@ -50,6 +78,16 @@ namespace Calloatti.OmniFactionDevTool
     private readonly BeaverFactory _beaverFactory;
     private readonly ISceneLoader _sceneLoader;
     private readonly GameModeSpecService _gameModeSpecService;
+    private readonly IAssetLoader _assetLoader;
+
+    // Tool-button faction backgrounds (no color, just sprites)
+    private readonly Dictionary<ITool, (VisualElement Background, Sprite NormalSprite, Sprite HotSprite)> _customToolBackgrounds
+        = new Dictionary<ITool, (VisualElement, Sprite, Sprite)>();
+
+    // Cached faction sprites
+    private readonly Dictionary<string, (Sprite Normal, Sprite Hot)> _factionSprites = new Dictionary<string, (Sprite, Sprite)>();
+
+    // Tallies (unchanged)
     private readonly Dictionary<string, FactionTally> _globalTallies = new Dictionary<string, FactionTally>();
     private readonly Dictionary<DistrictCenter, Dictionary<string, FactionTally>> _districtTallies = new Dictionary<DistrictCenter, Dictionary<string, FactionTally>>();
     private readonly Dictionary<Character, CharacterRecord> _characters = new Dictionary<Character, CharacterRecord>();
@@ -58,7 +96,7 @@ namespace Calloatti.OmniFactionDevTool
     private readonly HashSet<BlockObject> _wiredBuildings = new HashSet<BlockObject>();
 
     [Inject]
-    public OmniFactionService(EventBus eventBus, BeaverFactory beaverFactory, ISceneLoader sceneLoader, GameModeSpecService gameModeSpecService, FactionService factionService, DistrictCenterRegistry districtCenterRegistry)
+    public OmniFactionService(EventBus eventBus, BeaverFactory beaverFactory, ISceneLoader sceneLoader, GameModeSpecService gameModeSpecService, FactionService factionService, DistrictCenterRegistry districtCenterRegistry, IAssetLoader assetLoader)
     {
       _eventBus = eventBus;
       _beaverFactory = beaverFactory;
@@ -66,6 +104,7 @@ namespace Calloatti.OmniFactionDevTool
       _gameModeSpecService = gameModeSpecService;
       _factionService = factionService;
       _districtCenterRegistry = districtCenterRegistry;
+      _assetLoader = assetLoader;
     }
 
     public void Load()
@@ -74,6 +113,11 @@ namespace Calloatti.OmniFactionDevTool
       StartupComplete = false;
       _eventBus.Register(this);
       _entityFactionCache.Clear();
+
+      LoadFactionSprites();
+
+      // Process any pending tool buttons that were created before the service was ready.
+      FactionBackgroundQueue.ProcessPending();
     }
 
     public void Dispose()
@@ -83,8 +127,101 @@ namespace Calloatti.OmniFactionDevTool
       _entityFactionCache.Clear();
     }
 
-    // ---- Entity faction cache API ----
+    // ---- Load pre-tinted sprites per faction ----
+    private void LoadFactionSprites()
+    {
+      // Get all distinct faction IDs in a stable order
+      var factionIds = FactionBlueprintCache.TemplateToFactionId.Values.Distinct().ToList();
 
+      string[] fallbackIndices = { "00", "01", "02" };
+      int fallbackIndex = 0;
+
+      foreach (string factionId in factionIds)
+      {
+        string normalPath;
+        string hotPath;
+
+        if (string.Equals(factionId, "Folktails", StringComparison.OrdinalIgnoreCase))
+        {
+          normalPath = "Sprites/BottomBar/subbutton-bg-folktails-normal";
+          hotPath = "Sprites/BottomBar/subbutton-bg-folktails-hot";
+        }
+        else if (string.Equals(factionId, "IronTeeth", StringComparison.OrdinalIgnoreCase))
+        {
+          normalPath = "Sprites/BottomBar/subbutton-bg-ironteeth-normal";
+          hotPath = "Sprites/BottomBar/subbutton-bg-ironteeth-hot";
+        }
+        else
+        {
+          string index = fallbackIndices[fallbackIndex % fallbackIndices.Length];
+          fallbackIndex++;
+          normalPath = $"Sprites/BottomBar/subbutton-bg-{index}-normal";
+          hotPath = $"Sprites/BottomBar/subbutton-bg-{index}-hot";
+        }
+
+        Sprite normalSprite = _assetLoader.Load<Sprite>(normalPath);
+        Sprite hotSprite = _assetLoader.Load<Sprite>(hotPath);
+
+        _factionSprites[factionId] = (normalSprite, hotSprite);
+      }
+    }
+
+    // ---- Public API for getting sprites (optional) ----
+    public (Sprite Normal, Sprite Hot) GetFactionSprites(string factionId)
+    {
+      if (string.IsNullOrEmpty(factionId) || !_factionSprites.TryGetValue(factionId, out var sprites))
+        return (null, null);
+      return sprites;
+    }
+
+    // ---- Tool-button faction backgrounds ----
+    public bool TryApplyFactionBackground(ToolButton toolButton, string templateName)
+    {
+      if (toolButton == null || string.IsNullOrEmpty(templateName))
+        return false;
+
+      if (!FactionBlueprintCache.TemplateToFactionId.TryGetValue(templateName, out string factionId))
+        return false;
+
+      VisualElement background = toolButton.Root?.Q<VisualElement>("Background");
+      if (background == null)
+        return false;
+
+      if (!_factionSprites.TryGetValue(factionId, out var sprites))
+        return false;
+
+      // Apply normal sprite (no tint)
+      background.style.backgroundImage = new StyleBackground(sprites.Normal);
+      background.style.unityBackgroundImageTintColor = StyleKeyword.Null;
+
+      _customToolBackgrounds[toolButton.Tool] = (background, sprites.Normal, sprites.Hot);
+
+      return true;
+    }
+
+    [OnEvent]
+    public void OnToolEntered(ToolEnteredEvent e)
+    {
+      if (_customToolBackgrounds.TryGetValue(e.Tool, out var entry))
+      {
+        var (background, normalSprite, hotSprite) = entry;
+        background.style.backgroundImage = new StyleBackground(hotSprite ?? normalSprite);
+        background.style.unityBackgroundImageTintColor = StyleKeyword.Null;
+      }
+    }
+
+    [OnEvent]
+    public void OnToolExited(ToolExitedEvent e)
+    {
+      if (_customToolBackgrounds.TryGetValue(e.Tool, out var entry))
+      {
+        var (background, normalSprite, hotSprite) = entry;
+        background.style.backgroundImage = new StyleBackground(normalSprite);
+        background.style.unityBackgroundImageTintColor = StyleKeyword.Null;
+      }
+    }
+
+    // ---- Entity faction cache (unchanged) ----
     public static void SetFactionForEntity(GameObject entity, string faction)
     {
       if (entity == null || string.IsNullOrEmpty(faction)) return;
@@ -105,8 +242,7 @@ namespace Calloatti.OmniFactionDevTool
       return faction;
     }
 
-    // ---- Find nearest district faction ----
-
+    // ---- Find nearest district faction (unchanged) ----
     public static string FindNearestDistrictFaction(Vector3 position)
     {
       if (_districtCenterRegistry == null) return null;
@@ -127,8 +263,7 @@ namespace Calloatti.OmniFactionDevTool
       return faction == "Common" ? null : faction;
     }
 
-    // ---- Query API ----
-
+    // ---- Query API (unchanged) ----
     public PopulationData GetGlobal(string faction)
     {
       PopulationData populationData = new PopulationData();
@@ -147,8 +282,7 @@ namespace Calloatti.OmniFactionDevTool
       return populationData;
     }
 
-    // ---- Character tracking ----
-
+    // ---- Character tracking (unchanged) ----
     [OnEvent]
     public void OnCharacterCreated(CharacterCreatedEvent characterCreatedEvent)
     {
@@ -204,8 +338,7 @@ namespace Calloatti.OmniFactionDevTool
       ApplyCharacterDelta(record, -record.Contrib);
     }
 
-    // ---- Building tracking ----
-
+    // ---- Building tracking (unchanged) ----
     [OnEvent]
     public void OnEnteredFinishedState(EnteredFinishedStateEvent enteredFinishedStateEvent)
     {
@@ -318,8 +451,7 @@ namespace Calloatti.OmniFactionDevTool
       }
     }
 
-    // ---- DC-faction starting population ----
-
+    // ---- DC-faction starting population (unchanged) ----
     private void TrySpawnFactionStartingBeavers(BlockObject blockObject)
     {
       if (!StartupComplete) return;
@@ -391,8 +523,7 @@ namespace Calloatti.OmniFactionDevTool
           && tally.Adults + tally.Children + tally.Bots > 0;
     }
 
-    // ---- Event handlers ----
-
+    // ---- Event handlers (unchanged) ----
     private void OnChangedAssignedDistrict(object sender, ChangeAssignedDistrictEventArgs e)
     {
       Citizen citizen = (Citizen)sender;
@@ -463,8 +594,7 @@ namespace Calloatti.OmniFactionDevTool
         MoveBuildingDistrict(workplaceRecord, newDistrict);
     }
 
-    // ---- Contribution computation ----
-
+    // ---- Contribution computation (unchanged) ----
     private static CharacterContrib ComputeCharacterContribution(Character character)
     {
       int adults = 0, children = 0, bots = 0;
@@ -637,6 +767,7 @@ namespace Calloatti.OmniFactionDevTool
           new ContaminationData(tally.ContaminatedAdults, tally.ContaminatedChildren));
     }
 
+    // ---- Inner classes (unchanged) ----
     private sealed class CharacterRecord
     {
       public string Faction;

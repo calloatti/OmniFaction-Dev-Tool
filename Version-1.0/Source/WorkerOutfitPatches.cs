@@ -2,7 +2,7 @@ using System;
 using HarmonyLib;
 using Timberborn.WorkerOutfitSystem;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // WorkerOutfitService.Load only indexes the CURRENT faction's WorkerOutfitSpecs, so in the
   // multi-faction dev map a non-current faction's beaver/bot cannot resolve the outfit its

@@ -6,7 +6,7 @@ using Timberborn.DistributionSystem;
 using Timberborn.TemplateSystem;
 using Timberborn.WorkSystem;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   public static class FactionAssignmentHelper
   {
@@ -65,16 +65,24 @@ namespace Calloatti.OmniFactionDevTool
   [HarmonyPatch(typeof(WorkplaceAssigner), "Assign")]
   public static class Patch_WorkplaceAssigner_Assign
   {
+    // Reused across ticks to avoid per-update allocation. Assign runs single-threaded on the
+    // work-tick, so clearing + refilling the shared sets is safe (no re-entrancy).
+    private static readonly HashSet<Worker> _availableUnemployed = new HashSet<Worker>();
+    private static readonly HashSet<string> _servicedFactions = new HashSet<string>();
+
     public static bool Prefix(WorkplaceAssigner __instance)
     {
       var workplacesList = __instance._priorityOrderedWorkplaces._workplaces.Values;
       if (workplacesList == null || workplacesList.Count == 0) return false;
 
-      // Use a HashSet for O(1) removal. Even when empty, we must continue so understaffed
-      // workplaces can still be staffed by migrating compatible workers from lower-priority
-      // workplaces (vanilla ReassignWorkersToHigherPriorityWorkplaces); the fill loop below
-      // simply no-ops when there are no unemployed workers.
-      HashSet<Worker> availableUnemployed = new HashSet<Worker>(__instance._unemployedWorkers._unemployed);
+      // Vanilla cadence, extended per faction: DistrictWorkplaceAssigner.Tick calls Assign once
+      // per tick per worker-type, and vanilla Assign fully staffs exactly ONE workplace (the
+      // highest-priority understaffed one) per call. We service ONE workplace per faction per
+      // tick instead — each faction gets its own turn, so no faction starves on multi-faction
+      // maps, while still spreading staffing across ticks instead of one big burst.
+      _availableUnemployed.Clear();
+      _availableUnemployed.UnionWith(__instance._unemployedWorkers._unemployed);
+      _servicedFactions.Clear();
 
       for (int i = 0; i < workplacesList.Count; i++)
       {
@@ -83,13 +91,15 @@ namespace Calloatti.OmniFactionDevTool
         if (!understaffedWorkplace.Understaffed) continue;
 
         string workplaceFaction = FactionAssignmentHelper.GetWorkplaceFaction(understaffedWorkplace);
+        if (!_servicedFactions.Add(workplaceFaction)) continue;
+
         int numNeeded = understaffedWorkplace.DesiredWorkers - understaffedWorkplace.NumberOfAssignedWorkers;
 
-        // Try to assign compatible unemployed workers
-        while (numNeeded > 0 && availableUnemployed.Count > 0)
+        // Fill from compatible unemployed workers (vanilla AssignStalestUnemployed, faction-filtered).
+        while (numNeeded > 0 && _availableUnemployed.Count > 0)
         {
           Worker selectedWorker = null;
-          foreach (Worker worker in availableUnemployed)
+          foreach (Worker worker in _availableUnemployed)
           {
             if (FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
             {
@@ -99,50 +109,40 @@ namespace Calloatti.OmniFactionDevTool
           }
           if (selectedWorker == null) break;
 
-          availableUnemployed.Remove(selectedWorker);
+          _availableUnemployed.Remove(selectedWorker);
           understaffedWorkplace.AssignWorker(selectedWorker);
           numNeeded--;
         }
 
-        if (!understaffedWorkplace.Understaffed) continue;
-
-        // Reassignment from lower-priority workplaces
-        WorkplacePriority lowestPriorityStaffedWorkplace = null;
-        for (int num = workplacesList.Count - 1; num > i; num--)
+        if (understaffedWorkplace.Understaffed)
         {
-          WorkplacePriority staffedWp = workplacesList[num];
-          if (staffedWp.Workplace.NumberOfAssignedWorkers > 0 && understaffedWpPriority.Priority > staffedWp.Priority)
+          // Migrate from lower-priority staffed workplaces (vanilla
+          // ReassignWorkersToHigherPriorityWorkplaces, faction-filtered). Scans every lower-priority
+          // source — skipping ones without compatible workers — so multi-faction setups still find
+          // a source when the single lowest-priority workplace holds the wrong faction.
+          for (int num = workplacesList.Count - 1; num > i; num--)
           {
+            WorkplacePriority staffedWp = workplacesList[num];
+            if (staffedWp.Workplace.NumberOfAssignedWorkers <= 0
+                || understaffedWpPriority.Priority <= staffedWp.Priority) continue;
             var assignedWorkers = staffedWp.Workplace.AssignedWorkers;
             for (int w = assignedWorkers.Count - 1; w >= 0; w--)
             {
               Worker worker = assignedWorkers[w];
               if (FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
               {
-                lowestPriorityStaffedWorkplace = staffedWp;
-                break;
+                staffedWp.Workplace.UnassignWorker(worker);
+                understaffedWorkplace.AssignWorker(worker);
+                if (!understaffedWorkplace.Understaffed) break;
               }
             }
-            if (lowestPriorityStaffedWorkplace != null) break;
+            if (!understaffedWorkplace.Understaffed) break;
           }
         }
 
-        if (lowestPriorityStaffedWorkplace != null)
-        {
-          var assignedWorkers = lowestPriorityStaffedWorkplace.Workplace.AssignedWorkers;
-          int idx = assignedWorkers.Count - 1;
-          while (idx >= 0)
-          {
-            Worker worker = assignedWorkers[idx];
-            if (FactionAssignmentHelper.CanWorkAt(FactionAssignmentHelper.GetFactionID(worker), workplaceFaction))
-            {
-              lowestPriorityStaffedWorkplace.Workplace.UnassignWorker(worker);
-              understaffedWorkplace.AssignWorker(worker);
-              if (!understaffedWorkplace.Understaffed) break;
-            }
-            idx--;
-          }
-        }
+        // One workplace per faction per tick: keep scanning so every faction gets its turn.
+        // If this workplace is still understaffed after an exhaustive fill+migrate pass, no
+        // compatible workers exist — its faction's turn is spent; next tick retries.
       }
 
       return false;

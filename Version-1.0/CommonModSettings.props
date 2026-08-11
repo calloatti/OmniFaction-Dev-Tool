@@ -57,6 +57,7 @@
     <Publicize Include="Timberborn.DecalSystemUI" />
     <Publicize Include="Timberborn.DwellingSystem" />
     <Publicize Include="Timberborn.DwellingSystemUI" />
+    <Publicize Include="Timberborn.Emptying" />
     <Publicize Include="Timberborn.EntitySystem" />
     <Publicize Include="Timberborn.Explosions" />
     <Publicize Include="Timberborn.FactionSystem" />
@@ -65,6 +66,7 @@
     <Publicize Include="Timberborn.GameFactionSystem" />
     <Publicize Include="Timberborn.GameSaveRepositorySystemUI" />
     <Publicize Include="Timberborn.Gathering" />
+    <Publicize Include="Timberborn.Goods" />
     <Publicize Include="Timberborn.GoodsUI" />
     <Publicize Include="Timberborn.IlluminationUI" />
     <Publicize Include="Timberborn.InventorySystem" />
@@ -79,12 +81,14 @@
     <Publicize Include="Timberborn.PathSystem" />
     <Publicize Include="Timberborn.RecoveredGoodSystem" />
     <Publicize Include="Timberborn.Rendering" />
+    <Publicize Include="Timberborn.Reproduction" />
     <Publicize Include="Timberborn.ResourceCountingSystem" />
     <Publicize Include="Timberborn.SkySystem" />
     <Publicize Include="Timberborn.SlotSystem" />
     <Publicize Include="Timberborn.StockpileVisualization" />
     <Publicize Include="Timberborn.Stockpiles" />
     <Publicize Include="Timberborn.StockpilesUI" />
+    <Publicize Include="Timberborn.StatusSystem" />
     <Publicize Include="Timberborn.StorageBatchControl" />
     <Publicize Include="Timberborn.TemplateAttachmentSystem" />
     <Publicize Include="Timberborn.TemplateCollectionSystem" />
@@ -92,6 +96,7 @@
     <Publicize Include="Timberborn.TerrainSystemRendering" />
     <Publicize Include="Timberborn.TimbermeshAnimations" />
     <Publicize Include="Timberborn.ToolButtonSystem" />
+    <Publicize Include="Timberborn.TopBarSystem" />
     <Publicize Include="Timberborn.UILayoutSystem" />
     <Publicize Include="Timberborn.WalkingSystem" />
     <Publicize Include="Timberborn.Wandering" />

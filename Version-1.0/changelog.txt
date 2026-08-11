@@ -1,3 +1,12 @@
+* Game Version: 1.0.0.0 - Mod Version: 1.1.8
+- Removed reflection
+* Game Version: 1.0.0.0 - Mod Version: 1.1.7
+- Workplace assignment now matches vanilla cadence: one workplace per faction per tick
+- Fixed static caches surviving across game sessions (template attachments, localized faction names)
+- Reduced per-tick allocations in the workplace assigner
+* Game Version: 1.0.0.0 - Mod Version: 1.1.6
+- Add filtering tools
+- Add patches to prevent crash
 * Game Version: 1.0.0.0 - Mod Version: 1.1.5
 - Added Version-1.1 folder
 - Dev-tool beaver and bot spawns now use the nearest district center's faction (round-robin as fallback)

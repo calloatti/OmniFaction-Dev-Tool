@@ -2,7 +2,7 @@ using HarmonyLib;
 using Timberborn.AutomationBuildings;
 using Timberborn.Population;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // Hands a faction-filtered PopulationData to each Population Counter after the vanilla Sample()
   // has run, so a counter placed from a faction's blueprints (PopulationCounter.Folktails,

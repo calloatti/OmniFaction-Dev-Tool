@@ -11,12 +11,17 @@ using Timberborn.SingletonSystem;
 using Timberborn.TemplateCollectionSystem;
 using Timberborn.TemplateSystem;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   public static class FactionBlueprintCache
   {
     public static Dictionary<string, string> TemplateToFactionLocKey { get; } = new Dictionary<string, string>();
     public static Dictionary<string, string> TemplateToFactionId { get; } = new Dictionary<string, string>();
+    public static Dictionary<string, HashSet<string>> TemplateToFactionIds { get; } = new Dictionary<string, HashSet<string>>();
+
+    // Localized faction display names resolved once per locKey (populated lazily by the
+    // DisplayName postfix, cleared on Load). Avoids calling ILoc.T on every UI read.
+    public static Dictionary<string, string> LocKeyToFactionName { get; } = new Dictionary<string, string>();
   }
 
   [HarmonyPatch(typeof(TemplateCollectionService), nameof(TemplateCollectionService.Load))]
@@ -28,6 +33,9 @@ namespace Calloatti.OmniFactionDevTool
 
       FactionBlueprintCache.TemplateToFactionLocKey.Clear();
       FactionBlueprintCache.TemplateToFactionId.Clear();
+      FactionBlueprintCache.TemplateToFactionIds.Clear();
+      FactionBlueprintCache.LocKeyToFactionName.Clear();
+      Patch_TemplateAttachments_GetOrCreateAttachment.ClearCaches();
       ISpecService specService = __instance._specService;
       if (specService != null)
       {
@@ -41,8 +49,15 @@ namespace Calloatti.OmniFactionDevTool
 
           foreach (string colId in faction.TemplateCollectionIds)
           {
-            TemplateCollectionSpec colSpec = collectionSpecs.FirstOrDefault(c => c.CollectionId == colId);
-            if (colSpec != null)
+            // Iterate ALL collection specs matching this CollectionId. A mod that appends to an
+            // existing collection (e.g. via "Blueprints#append") creates a *separate*
+            // TemplateCollectionSpec with the same CollectionId (different asset name = no JSON
+            // merge at load time). Using FirstOrDefault here would only pick up the first spec
+            // (vanilla's) and skip the mod's appended blueprints — so we must scan every match,
+            // mirroring the game's own TemplateCollectionService.Load pattern of SelectMany over
+            // GetSpecs<TemplateCollectionSpec>().
+            var matchingCollectionSpecs = collectionSpecs.Where(c => c.CollectionId == colId);
+            foreach (TemplateCollectionSpec colSpec in matchingCollectionSpecs)
             {
               foreach (var bpAsset in colSpec.Blueprints)
               {
@@ -55,6 +70,12 @@ namespace Calloatti.OmniFactionDevTool
                     FactionBlueprintCache.TemplateToFactionLocKey[tSpec.TemplateName] = locKey;
                     FactionBlueprintCache.TemplateToFactionId[tSpec.TemplateName] = factionId;
                   }
+                  if (!FactionBlueprintCache.TemplateToFactionIds.TryGetValue(tSpec.TemplateName, out HashSet<string> factionIds))
+                  {
+                    factionIds = new HashSet<string>();
+                    FactionBlueprintCache.TemplateToFactionIds[tSpec.TemplateName] = factionIds;
+                  }
+                  factionIds.Add(factionId);
                 }
               }
             }
@@ -86,22 +107,25 @@ namespace Calloatti.OmniFactionDevTool
     public static void Postfix(LabeledEntity __instance, ref string __result, ref string ____displayName, ILoc ____loc)
     {
       TemplateSpec templateSpec = __instance.GetComponent<TemplateSpec>();
-      if (templateSpec != null && !string.IsNullOrEmpty(templateSpec.TemplateName))
+      if (templateSpec == null || string.IsNullOrEmpty(templateSpec.TemplateName)) return;
+
+      if (!FactionBlueprintCache.TemplateToFactionLocKey.TryGetValue(templateSpec.TemplateName, out string locKey)
+          || string.IsNullOrEmpty(locKey)) return;
+
+      // Resolve the localized faction name once per locKey; only cache successful resolutions
+      // (untranslated keys fall through to the original name and retry on next read).
+      if (!FactionBlueprintCache.LocKeyToFactionName.TryGetValue(locKey, out string factionName))
       {
-        if (FactionBlueprintCache.TemplateToFactionLocKey.TryGetValue(templateSpec.TemplateName, out string locKey)
-            && !string.IsNullOrEmpty(locKey))
-        {
-          string factionName = ____loc.T(locKey);
-          if (!string.IsNullOrEmpty(factionName) && factionName != locKey)
-          {
-            string suffix = $" ({factionName})";
-            if (!string.IsNullOrEmpty(__result) && !__result.EndsWith(suffix))
-            {
-              __result += suffix;
-              ____displayName = __result;
-            }
-          }
-        }
+        factionName = ____loc.T(locKey);
+        if (string.IsNullOrEmpty(factionName) || factionName == locKey) return;
+        FactionBlueprintCache.LocKeyToFactionName[locKey] = factionName;
+      }
+
+      string suffix = $" ({factionName})";
+      if (!string.IsNullOrEmpty(__result) && !__result.EndsWith(suffix))
+      {
+        __result += suffix;
+        ____displayName = __result;
       }
     }
   }

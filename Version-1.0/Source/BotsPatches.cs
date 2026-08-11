@@ -9,7 +9,7 @@ using Timberborn.TemplateSystem;
 using Timberborn.Workshops;
 using UnityEngine;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // We track the active Manufactory during the production tick to provide 
   // faction context when BotFactory.Create is subsequently called.
@@ -38,9 +38,13 @@ namespace Calloatti.OmniFactionDevTool
     public static bool Prefix(BotFactory __instance, TemplateService ____templateService, TemplateInstantiator ____templateInstantiator)
     {
       var botSpecs = ____templateService.GetAll<BotSpec>().ToList();
+
+      // Clear before the branch so the fallback path (missing specs) also drops any stale
+      // cross-session template list left over from a previous game.
+      AllBotTemplates.Clear();
+
       if (botSpecs.Count > 0)
       {
-        AllBotTemplates.Clear();
         foreach (var botSpec in botSpecs)
         {
           ____templateInstantiator.CacheInstance(botSpec.Blueprint);

@@ -4,13 +4,22 @@ using HarmonyLib;
 using Timberborn.TemplateAttachmentSystem;
 using UnityEngine;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   [HarmonyPatch(typeof(TemplateAttachments), nameof(TemplateAttachments.GetOrCreateAttachment))]
   public static class Patch_TemplateAttachments_GetOrCreateAttachment
   {
     private static readonly Dictionary<(string, string), string> _rewrittenIdCache = new Dictionary<(string, string), string>();
     private static readonly Dictionary<TemplateAttachmentsSpec, HashSet<string>> _specAttachmentIdCache = new Dictionary<TemplateAttachmentsSpec, HashSet<string>>();
+
+    // Statics survive across game sessions, so both caches must be dropped when the spec service
+    // reloads (TemplateCollectionService.Load). _specAttachmentIdCache in particular holds
+    // TemplateAttachmentsSpec references from the previous session's spec graph.
+    internal static void ClearCaches()
+    {
+      _rewrittenIdCache.Clear();
+      _specAttachmentIdCache.Clear();
+    }
 
     public static bool Prefix(TemplateAttachments __instance, ref string id, ref TemplateAttachment __result)
     {

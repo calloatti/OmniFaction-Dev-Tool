@@ -7,7 +7,7 @@ using Timberborn.FactionSystem;
 using Timberborn.GameFactionSystem;
 using UnityEngine;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // The game renders a beaver's/bot's portrait from FactionService.Current's avatars, so in the
   // multi-faction dev map every character shows the current faction's face. These postfixes

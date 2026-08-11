@@ -2,7 +2,7 @@
 using Timberborn.Modding;
 using Timberborn.ModManagerScene;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // Native Timberborn Mod Starter Entry Point
   public class UnlockAllFactionBuildingsStarter : IModStarter

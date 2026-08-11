@@ -6,7 +6,7 @@ using Timberborn.NeedSystem;
 using Timberborn.Wellbeing;
 using Timberborn.WellbeingUI;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   [HarmonyPatch(typeof(WellbeingService), "AppliedNeeds")]
   public static class Patch_WellbeingService_AppliedNeeds

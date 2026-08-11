@@ -6,7 +6,7 @@ using Timberborn.Planting;
 using Timberborn.PlantingUI;
 using Timberborn.TemplateSystem;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // Patch GetPlanterBuildingName to safely use FirstOrDefault instead of Single
   // and append the faction suffix if applicable.

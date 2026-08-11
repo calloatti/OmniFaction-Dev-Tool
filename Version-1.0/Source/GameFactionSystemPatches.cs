@@ -7,7 +7,7 @@ using Timberborn.FactionSystem;
 using Timberborn.GameFactionSystem;
 using Timberborn.NeedSpecs;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // 1. Patch building template collections across all factions
   [HarmonyPatch(typeof(FactionTemplateCollectionIdProvider), nameof(FactionTemplateCollectionIdProvider.GetTemplateCollectionIds))]

@@ -7,7 +7,7 @@ using Timberborn.RecoveredGoodSystem;
 using Timberborn.TemplateSystem;
 using Timberborn.WonderPlanes;
 
-namespace Calloatti.OmniFactionDevTool
+namespace Calloatti.OmniFaction
 {
   // Patch BlockOccupationLayerFactory.Load to handle multiple BlockOccupierSpec blueprints safely
   [HarmonyPatch(typeof(BlockOccupationLayerFactory), nameof(BlockOccupationLayerFactory.Load))]

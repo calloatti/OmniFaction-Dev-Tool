@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using HarmonyLib;
 using Timberborn.BaseComponentSystem;
 using Timberborn.Beavers;
@@ -250,7 +251,7 @@ namespace Calloatti.OmniFaction
   // (OmniFactionService starting population), or the startup faction before the game is playable,
   // or the faction of the nearest District Center to the spawn position (dev-tool spawns), falling
   // back to round-robin. Also covers CreateNewbornChild, which delegates to CreateChild.
-  [HarmonyPatch(typeof(BeaverFactory), nameof(BeaverFactory.CreateChild))]
+  [HarmonyPatch(typeof(BeaverFactory), nameof(BeaverFactory.CreateChild), new[] { typeof(Vector3), typeof(float) })]
   public static class Patch_BeaverFactory_CreateChild
   {
     public static bool Prefix(BeaverFactory __instance, Vector3 position)
@@ -343,11 +344,19 @@ namespace Calloatti.OmniFaction
   // matched from the entity name (e.g. "BeaverAdult.Folktails") so fur stays aligned with the
   // beaver's faction-scoped needs. Shared/unsuffixed beavers fall back to round-robin.
   // Uses the first texture of each faction's set; the 1-5 variants are applied later per role.
-  [HarmonyPatch(typeof(BeaverTextureSetter), nameof(BeaverTextureSetter.Start))]
+  // TargetMethod resolves the entry point per game version: "Start" (1.0) or "InitializeEntity"
+  // (1.1, renamed when the component switched from IStartableComponent to IInitializableEntity).
+  [HarmonyPatch(typeof(BeaverTextureSetter))]
   [HarmonyPriority(Priority.First)]
   public static class Patch_BeaverTextureSetter_Start
   {
     private static int _factionCounter;
+
+    public static MethodBase TargetMethod()
+    {
+      return AccessTools.DeclaredMethod(typeof(BeaverTextureSetter), "Start")
+          ?? AccessTools.DeclaredMethod(typeof(BeaverTextureSetter), "InitializeEntity");
+    }
 
     public static bool Prefix(BeaverTextureSetter __instance)
     {

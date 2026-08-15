@@ -97,7 +97,7 @@ Every patch exists to survive the **duplicated specs / templates** that appear w
 ## Version‑1.1 fork (game 1.1)
 
 - `Version-1.1/` is a parallel fork of `Version-1.0/` targeting game 1.1.x (Min Game Version `1.1.0.0`). The source is byte‑for‑byte identical to `Version-1.0/Source/` except for the API‑drift fixes below. **Do not re‑sync `Version-1.1/Source/` wholesale from `Version-1.0/`** or these fixes are lost.
-- Builds against the **experimental** game DLLs via `<TimberbornPath>C:\Program Files (x86)\Steam\steamapps\common\timberborn_experimental\Timberborn_Data\Managed</TimberbornPath>` in `Version-1.1/OmniFaction Dev Tool.csproj` (a copy of `CommonModSettings.props` + the `Version-1.0` csproj, with that path override). Reference decompiled source for 1.1: `timberborn-decompiled-1.1.1.1-cfb778f-xsw`.
+- Builds against the **experimental** game DLLs via `<TimberbornPath>C:\Program Files (x86)\Steam\steamapps\common\timberborn_experimental\Timberborn_Data\Managed</TimberbornPath>` in `Version-1.1/OmniFaction.csproj` (a copy of `CommonModSettings.props` + the `Version-1.0` csproj, with that path override). Reference decompiled source for 1.1: `timberborn-decompiled-1.1.1.1-cfb778f-xsw`.
 - **API drift 1.0.13.1 → 1.1.1.1 (all four fixes are in `Version-1.1/Source/`):**
   1. `BeaverTextureSetter.Start` → `BeaverTextureSetter.InitializeEntity` (`IStartableComponent.Start` replaced by `IInitializableEntity.InitializeEntity`).
   2. `BotFactory.Create(Vector3, Quaternion)` → `Create(Vector3, Quaternion, object initComponent)` — patch target args must include `typeof(object)`.
@@ -108,7 +108,7 @@ Every patch exists to survive the **duplicated specs / templates** that appear w
 - Full per‑file port notes, verification diffs, and the porting checklist live in `Version-1.1/AGENTS.md`.
 
 ## Build & Deploy
-- Build via `dotnet build` in `Version-1.0/` (project `OmniFaction Dev Tool.csproj`). The `Version-1.1` fork builds the same way from `Version-1.1/`.
+- Build via `dotnet build` in `Version-1.0/` (project `OmniFaction.csproj`). The `Version-1.1` fork builds the same way from `Version-1.1/`.
 - Pre/post build scripts (`prebuild.ps1`/`postbuild.ps1`) handle assembly copying.
 - `CommonModSettings.props` defines Timberborn game DLL references and publicizer configuration. The mod's own `.csproj` adds `Publicize` includes for `Timberborn.GameFactionSystem`, `Timberborn.FactionSystem`, `Timberborn.Beavers`, `Timberborn.Bots`, `Timberborn.BlockObstacles`, `Timberborn.RecoveredGoodSystem`, `Timberborn.WonderPlanes`, `Timberborn.ModularShafts`, `Timberborn.TemplateCollectionSystem`, `Timberborn.TemplateAttachmentSystem`, `Timberborn.WorkSystem`, `Timberborn.Wellbeing`, `Timberborn.WellbeingUI`, `Timberborn.Goods`, `Timberborn.TopBarSystem`, plus the `DoNotPublicize` items for the publicized‑assembly events `OmniFactionService` subscribes to (see Known Pitfalls).
 [file content end]

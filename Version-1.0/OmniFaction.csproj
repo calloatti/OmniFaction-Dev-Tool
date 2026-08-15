@@ -3,7 +3,7 @@
   <PropertyGroup>
     <AssemblyName>OmniFaction</AssemblyName>
     <RootNamespace>Calloatti.OmniFaction</RootNamespace>
-    <TimberbornPath>C:\Program Files (x86)\Steam\steamapps\common\timberborn_main\Timberborn_Data\Managed</TimberbornPath>
+    <TimberbornPath>C:\Program Files (x86)\Steam\steamapps\common\timberborn_public\Timberborn_Data\Managed</TimberbornPath>
   </PropertyGroup>
 
   <Import Project="CommonModSettings.props" />
@@ -30,4 +30,5 @@
   </ItemGroup>
 
 </Project>
+
 

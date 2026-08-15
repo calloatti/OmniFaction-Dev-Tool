@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using HarmonyLib;
 using Timberborn.BlueprintSystem;
 using Timberborn.Bots;
@@ -61,11 +62,19 @@ namespace Calloatti.OmniFaction
   // Patch BotFactory.Create so spawned bots dynamically match the building that created them,
   // the DC-spawn faction when one is pending (OmniFactionService starting population), or the
   // faction of the nearest District Center to the spawn position (dev-tool spawns), falling back
-  // to round-robin.
-  [HarmonyPatch(typeof(BotFactory), nameof(BotFactory.Create), new[] { typeof(Vector3), typeof(Quaternion) })]
+  // to round-robin. TargetMethod resolves the Create overload per game version: (Vector3,
+  // Quaternion, object) in 1.1, (Vector3, Quaternion) in 1.0, (Vector3) as a last resort.
+  [HarmonyPatch(typeof(BotFactory))]
   public static class Patch_BotFactory_Create
   {
     private static int _botCounter;
+
+    public static MethodBase TargetMethod()
+    {
+      return AccessTools.DeclaredMethod(typeof(BotFactory), nameof(BotFactory.Create), new[] { typeof(Vector3), typeof(Quaternion), typeof(object) })
+          ?? AccessTools.DeclaredMethod(typeof(BotFactory), nameof(BotFactory.Create), new[] { typeof(Vector3), typeof(Quaternion) })
+          ?? AccessTools.DeclaredMethod(typeof(BotFactory), nameof(BotFactory.Create), new[] { typeof(Vector3) });
+    }
 
     public static bool Prefix(BotFactory __instance, Vector3 position)
     {

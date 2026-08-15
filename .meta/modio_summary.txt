@@ -1,0 +1,1 @@
+Mod developer tool that unlocks buildings, goods, materials, and needs across all factions in a single map for all faction testing.

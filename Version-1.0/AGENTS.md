@@ -41,7 +41,7 @@ Ported from `Version-1.1/Source/`, which implements the feature per `../populati
 - All eight events the service subscribes to render identically in 1.0: `Citizen.ChangedAssignedDistrict` (`ChangeAssignedDistrictEventArgs`), `DistrictBuilding.ReassignedDistrict`, `Dwelling.NumberOfDwellersChanged`, `WorkRefuser.RefusesWorkChanged`, `Workplace.WorkerAssigned/WorkerUnassigned/DesiredWorkersChanged`, `WorkplaceWorkerType.WorkerTypeChanged`.
 - `Contaminable.ContaminationChanged`, `BlockableObject.ObjectBlocked/ObjectUnblocked` (all `EventHandler`), `Contaminable.IsContaminated`, `BlockableObject.IsUnblocked`.
 - `ChildSpec`, `Character.HasComponent<T>`, and the four EventBus payloads (`CharacterCreatedEvent.Character`, `CharacterKilledEvent.Character`, `Entered/ExitedFinishedStateEvent.BlockObject`).
-- The csproj gained the same 8 `DoNotPublicize` items as `Version-1.1/OmniFaction Dev Tool.csproj` (backing fields of the publicized-assembly events the service subscribes to; see root `AGENTS.md` Known Pitfalls). `Timberborn.AutomationBuildings`, `Timberborn.GameDistricts`, `Timberborn.DwellingSystem`, `Timberborn.WorkSystem` are all in `CommonModSettings.props` Publicize — unchanged.
+- The csproj gained the same 8 `DoNotPublicize` items as `Version-1.1/OmniFaction.csproj` (backing fields of the publicized-assembly events the service subscribes to; see root `AGENTS.md` Known Pitfalls). `Timberborn.AutomationBuildings`, `Timberborn.GameDistricts`, `Timberborn.DwellingSystem`, `Timberborn.WorkSystem` are all in `CommonModSettings.props` Publicize — unchanged.
 
 ## Change 4 — Modded-faction beaver support (Emberpelts, first one-by-one)
 
@@ -89,4 +89,4 @@ The "Bobingabout Script Pack" `CharacterCustomizer` (workshop 3416879061) overwr
 
 ## Notes
 - Root `AGENTS.md`'s source table already describes the **target** state (beavers restricted for work + the `DwellingSystemPatches.cs` and counter rows), so no further root doc edit is needed — it applies to both forks.
-- Build: `dotnet build "OmniFaction Dev Tool.csproj" -c Debug -v m` from `Version-1.0/` — expect 0 warnings / 0 errors.
+- Build: `dotnet build "OmniFaction.csproj" -c Debug -v m` from `Version-1.0/` — expect 0 warnings / 0 errors.

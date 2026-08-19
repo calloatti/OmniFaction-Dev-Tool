@@ -1,0 +1,8 @@
+{
+  "Name": "OmniFaction",
+  "Version": "1.1.8",
+  "Id": "Calloatti.OmniFactionDevTool",
+  "MinimumGameVersion": "1.1.2.0",
+  "Description": "Mod developer tool that unlocks buildings, goods, materials, and needs across all factions in a single map for all faction testing.",
+  "RequiredMods": [{"Id": "Harmony", "MinVersion": "2.4.1"}]
+}

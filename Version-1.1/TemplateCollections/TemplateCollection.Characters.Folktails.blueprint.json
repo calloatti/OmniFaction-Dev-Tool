@@ -1,0 +1,8 @@
+{
+  "TemplateCollectionSpec": {
+    "Blueprints#append": [
+      "Characters/Beaver/BeaverAdult.Folktails.blueprint",
+      "Characters/Beaver/BeaverChild.Folktails.blueprint"
+    ]
+  }
+}

@@ -77,7 +77,6 @@ The mod ships **six factioned beaver blueprints** (Folktails/IronTeeth/Emberpelt
 - `TemplateCollections/TemplateCollection.Characters.{Folktails,IronTeeth}.blueprint.json` — overrides that use **`Blueprints#append`** to add the factioned beavers to the per‑faction character collection. **Do not overwrite the `Blueprints` array wholesale** — the shared `BeaverAdult.blueprint`/`BeaverChild.blueprint` must stay loadable because **existing saves reference those template names**; replacing the list deletes all beavers on save load. The `#append` keyword (`Timberborn.SerializationSystem.cs` `JsonKeywords`) merges the array items into the vanilla list. (Base‑game factions only — `#append` is load‑order‑fragile across mods, see `modded-faction-beavers.md`.)
 - `TemplateCollections/TemplateCollection.Characters.Emberpelts.blueprint.json` — **standalone** `TemplateCollectionSpec` with `CollectionId: "Characters.Emberpelts"` + a full `Blueprints` array (no `#append`, no `.optional`). `TemplateCollectionService.Load` unions blueprints across all specs sharing a `CollectionId`, so this merges with the Emberpelts mod's own collection **regardless of load order**, and is a harmless orphan when the mod is absent.
 - Because `PickTemplate` filters the round‑robin pool to `IsFactioned` templates, new beavers always spawn from the factioned copies; the shared templates only exist for save compatibility.
-- Deploying the folders is handled outside the build (copy `Characters/` and `TemplateCollections/` into the deployed mod folder); the pre/post build scripts copy the compiled `bin` output only.
 
 ## Core Principle
 Every patch exists to survive the **duplicated specs / templates** that appear when all factions are loaded into one map. The vanilla code calls `GetSingle<T>()` or throws on duplicate template names; this mod's patches replace those failures with safe `FirstOrDefault()` dedup/handling and **fall back to the original method** (return `true`) whenever the expected data is missing. Do not break that fallback contract.
@@ -112,3 +111,8 @@ Every patch exists to survive the **duplicated specs / templates** that appear w
 - Pre/post build scripts (`prebuild.ps1`/`postbuild.ps1`) handle assembly copying.
 - `CommonModSettings.props` defines Timberborn game DLL references and publicizer configuration. The mod's own `.csproj` adds `Publicize` includes for `Timberborn.GameFactionSystem`, `Timberborn.FactionSystem`, `Timberborn.Beavers`, `Timberborn.Bots`, `Timberborn.BlockObstacles`, `Timberborn.RecoveredGoodSystem`, `Timberborn.WonderPlanes`, `Timberborn.ModularShafts`, `Timberborn.TemplateCollectionSystem`, `Timberborn.TemplateAttachmentSystem`, `Timberborn.WorkSystem`, `Timberborn.Wellbeing`, `Timberborn.WellbeingUI`, `Timberborn.Goods`, `Timberborn.TopBarSystem`, plus the `DoNotPublicize` items for the publicized‑assembly events `OmniFactionService` subscribes to (see Known Pitfalls).
 [file content end]
+
+## Hard Rule
+DO NOT EVER TOUCH THE DEPLOY FOLDER.
+
+BUILD DOES EVERYTHING, NEVER EVER MESS WITH THE DEPLOY PROCESS.

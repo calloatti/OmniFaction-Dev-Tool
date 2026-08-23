@@ -38,8 +38,8 @@
     <Publicize Include="Timberborn.BlockObjectModelSystem" />
     <Publicize Include="Timberborn.BlockObjectPickingSystem" />
     <Publicize Include="Timberborn.BlockObjectTools" />
-    <Publicize Include="Timberborn.BlockSystem" />
     <Publicize Include="Timberborn.BlockObstacles" />
+    <Publicize Include="Timberborn.BlockSystem" />
     <Publicize Include="Timberborn.BlockingSystem" />
     <Publicize Include="Timberborn.BlueprintSystem" />
     <Publicize Include="Timberborn.Bots" />
@@ -49,8 +49,8 @@
     <Publicize Include="Timberborn.Buildings" />
     <Publicize Include="Timberborn.BuildingsNavigation" />
     <Publicize Include="Timberborn.BuildingsReachability" />
-    <Publicize Include="Timberborn.ConstructionGuidelines" />
     <Publicize Include="Timberborn.CharactersUI" />
+    <Publicize Include="Timberborn.ConstructionGuidelines" />
     <Publicize Include="Timberborn.CoreUI" />
     <Publicize Include="Timberborn.CursorToolSystem" />
     <Publicize Include="Timberborn.DecalSystem" />
@@ -74,26 +74,30 @@
     <Publicize Include="Timberborn.LevelVisibilitySystem" />
     <Publicize Include="Timberborn.LevelVisibilitySystemUI" />
     <Publicize Include="Timberborn.MainMenuScene" />
+    <Publicize Include="Timberborn.MechanicalSystem" />
     <Publicize Include="Timberborn.ModManagerScene" />
     <Publicize Include="Timberborn.Modding" />
     <Publicize Include="Timberborn.ModelHiding" />
     <Publicize Include="Timberborn.ModularShafts" />
     <Publicize Include="Timberborn.Navigation" />
     <Publicize Include="Timberborn.PathSystem" />
+    <Publicize Include="Timberborn.Planting" />
+    <Publicize Include="Timberborn.PlantingUI" />
     <Publicize Include="Timberborn.RecoveredGoodSystem" />
     <Publicize Include="Timberborn.Rendering" />
     <Publicize Include="Timberborn.Reproduction" />
     <Publicize Include="Timberborn.ResourceCountingSystem" />
     <Publicize Include="Timberborn.SkySystem" />
     <Publicize Include="Timberborn.SlotSystem" />
+    <Publicize Include="Timberborn.StatusSystem" />
     <Publicize Include="Timberborn.StockpileVisualization" />
     <Publicize Include="Timberborn.Stockpiles" />
     <Publicize Include="Timberborn.StockpilesUI" />
-    <Publicize Include="Timberborn.StatusSystem" />
     <Publicize Include="Timberborn.StorageBatchControl" />
     <Publicize Include="Timberborn.TemplateAttachmentSystem" />
     <Publicize Include="Timberborn.TemplateCollectionSystem" />
     <Publicize Include="Timberborn.TerrainPhysics" />
+    <Publicize Include="Timberborn.TerrainQueryingSystem" />
     <Publicize Include="Timberborn.TerrainSystemRendering" />
     <Publicize Include="Timberborn.TimbermeshAnimations" />
     <Publicize Include="Timberborn.ToolButtonSystem" />
@@ -104,12 +108,12 @@
     <Publicize Include="Timberborn.WaterBuildings" />
     <Publicize Include="Timberborn.WaterBuildingsUI" />
     <Publicize Include="Timberborn.WaterSystem" />
-    <Publicize Include="Timberborn.WorkerOutfitSystem" />
     <Publicize Include="Timberborn.Wellbeing" />
     <Publicize Include="Timberborn.WellbeingUI" />
     <Publicize Include="Timberborn.WonderPlanes" />
     <Publicize Include="Timberborn.WorkSystem" />
     <Publicize Include="Timberborn.WorkSystemUI" />
+    <Publicize Include="Timberborn.WorkerOutfitSystem" />
   </ItemGroup>
   
   <ItemGroup>
@@ -171,6 +175,12 @@
     <None Update="changelog.txt"><CopyToOutputDirectory>Always</CopyToOutputDirectory></None>
     <None Update="simpleconfig.txt"><CopyToOutputDirectory>Always</CopyToOutputDirectory></None>
 
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="AssetBundles\Resources\**" />
+    <EmbeddedResource Remove="AssetBundles\Resources\**" />
+    <None Remove="AssetBundles\Resources\**" />
   </ItemGroup>
 
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
